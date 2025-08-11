@@ -1,653 +1,695 @@
-import { useState, useEffect } from 'react';
-import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Daily Movie Line Generator</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Firebase CDN Scripts -->
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0d1117;
+        }
+        @keyframes multicolor-glow {
+            0% { box-shadow: 0 0 10px #ff0077, 0 0 20px #00e5ff; }
+            50% { box-shadow: 0 0 10px #00ff73, 0 0 20px #ff00ff; }
+            100% { box-shadow: 0 0 10px #ffea00, 0 0 20px #3498db; }
+        }
+        .loader {
+            border-top-color: #3b82f6;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        .glowing-button {
+            position: relative;
+            padding: 0.75rem 1.5rem;
+            border-radius: 9999px;
+            font-weight: 700;
+            color: #fff;
+            transition: all 0.3s;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+            background-image: linear-gradient(to right, #2563eb, #8b5cf6);
+        }
+        .glowing-button:hover:not(:disabled) {
+            background-image: linear-gradient(to right, #1d4ed8, #7c3aed);
+        }
+        .glowing-button:not(:disabled) {
+            animation: multicolor-glow 1.5s infinite alternate;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
 
-// Check for Canvas environment variables
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+    <script type="text/babel">
+        // Access React hooks from the global React object
+        const { useState, useEffect } = React;
+        
+        // Access Firebase services from the global firebase object
+        const { initializeApp } = window.firebase.app;
+        const { getAuth, signInAnonymously, onAuthStateChanged } = window.firebase.auth;
+        const { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs, addDoc } = window.firebase.firestore;
 
-// Helper to convert base64 to ArrayBuffer
-const base64ToArrayBuffer = (base64) => {
-    const binaryString = window.atob(base64);
-    const len = binaryString.length;
-    const bytes = new Uint8Array(len);
-    for (let i = 0; i < len; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-    }
-    return bytes.buffer;
-};
+        // Check for Canvas environment variables
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
 
-// Helper to convert PCM to WAV
-const pcmToWav = (pcmData, sampleRate) => {
-    const dataView = new DataView(new ArrayBuffer(44 + pcmData.byteLength));
-    // WAV header
-    let offset = 0;
-    const writeString = (str) => {
-        for (let i = 0; i < str.length; i++) dataView.setUint8(offset++, str.charCodeAt(i));
-    };
-    const writeUint32 = (val) => {
-        dataView.setUint32(offset, val, true);
-        offset += 4;
-    };
-    const writeUint16 = (val) => {
-        dataView.setUint16(offset, val, true);
-        offset += 2;
-    };
+        // Helper to convert base64 to ArrayBuffer
+        const base64ToArrayBuffer = (base64) => {
+            const binaryString = window.atob(base64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+            return bytes.buffer;
+        };
 
-    writeString('RIFF');
-    writeUint32(36 + pcmData.byteLength);
-    writeString('WAVE');
-    writeString('fmt ');
-    writeUint32(16);
-    writeUint16(1); // PCM
-    writeUint16(1); // Mono
-    writeUint32(sampleRate);
-    writeUint32(sampleRate * 2); // Byte rate
-    writeUint16(2); // Block align
-    writeUint16(16); // Bits per sample
-    writeString('data');
-    writeUint32(pcmData.byteLength);
+        // Helper to convert PCM to WAV
+        const pcmToWav = (pcmData, sampleRate) => {
+            const dataView = new DataView(new ArrayBuffer(44 + pcmData.byteLength));
+            // WAV header
+            let offset = 0;
+            const writeString = (str) => {
+                for (let i = 0; i < str.length; i++) dataView.setUint8(offset++, str.charCodeAt(i));
+            };
+            const writeUint32 = (val) => {
+                dataView.setUint32(offset, val, true);
+                offset += 4;
+            };
+            const writeUint16 = (val) => {
+                dataView.setUint16(offset, val, true);
+                offset += 2;
+            };
 
-    const pcmView = new Int16Array(pcmData.buffer);
-    for (let i = 0; i < pcmView.length; i++) {
-        dataView.setInt16(offset, pcmView[i], true);
-        offset += 2;
-    }
+            writeString('RIFF');
+            writeUint32(36 + pcmData.byteLength);
+            writeString('WAVE');
+            writeString('fmt ');
+            writeUint32(16);
+            writeUint16(1); // PCM
+            writeUint16(1); // Mono
+            writeUint32(sampleRate);
+            writeUint32(sampleRate * 2); // Byte rate
+            writeUint16(2); // Block align
+            writeUint16(16); // Bits per sample
+            writeString('data');
+            writeUint32(pcmData.byteLength);
 
-    return new Blob([dataView], { type: 'audio/wav' });
-};
+            const pcmView = new Int16Array(pcmData.buffer);
+            for (let i = 0; i < pcmView.length; i++) {
+                dataView.setInt16(offset, pcmView[i], true);
+                offset += 2;
+            }
 
-// Custom button component with glowing effect
-const GlowingButton = ({ children, onClick, disabled = false, className = '' }) => (
-    <button
-        onClick={onClick}
-        disabled={disabled}
-        className={`relative w-full py-3 px-6 rounded-full text-lg font-bold text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
-                   bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800
-                   shadow-md
-                   ${disabled ? '' : 'animate-pulse-glow'}
-                   ${className}`}
-        style={{
-            boxShadow: '0 0 10px #00f, 0 0 20px #f0f, 0 0 30px #0ff',
-            animation: disabled ? 'none' : 'multicolor-glow 1.5s infinite alternate'
-        }}
-    >
-        {children}
-    </button>
-);
+            return new Blob([dataView], { type: 'audio/wav' });
+        };
 
-// Loader component
-const Loader = ({ size = 6, text = 'Loading...' }) => (
-    <div className="flex flex-col items-center justify-center my-4">
-        <div className={`loader ease-linear rounded-full border-${size} border-t-${size} border-gray-500 h-${size * 4} w-${size * 4}`}></div>
-        <span className="mt-2 text-sm text-gray-400">{text}</span>
-    </div>
-);
+        // Custom button component with glowing effect
+        const GlowingButton = ({ children, onClick, disabled = false, className = '' }) => (
+            <button
+                onClick={onClick}
+                disabled={disabled}
+                className={`relative w-full py-3 px-6 rounded-full text-lg font-bold text-white transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed
+                           bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 active:from-blue-800 active:to-purple-800
+                           shadow-md glowing-button
+                           ${className}`}
+            >
+                {children}
+            </button>
+        );
 
-// Modal component
-const Modal = ({ children, title, onClose, className = '' }) => (
-    <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
-        <div className={`bg-[#1a202c] rounded-xl p-6 w-full max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto transform scale-100 transition-transform duration-300 ${className}`}>
-            <div className="flex justify-between items-center mb-4">
-                <h2 className="text-2xl font-bold text-white">{title}</h2>
-                <button onClick={onClose} className="text-gray-400 hover:text-white text-3xl font-bold">&times;</button>
+        // Loader component
+        const Loader = ({ size = 6, text = 'Loading...' }) => (
+            <div className="flex flex-col items-center justify-center my-4">
+                <div className={`loader ease-linear rounded-full border-${size} border-t-${size} border-gray-500 h-${size * 4} w-${size * 4}`}></div>
+                <span className="mt-2 text-sm text-gray-400">{text}</span>
             </div>
-            {children}
-        </div>
-    </div>
-);
+        );
 
-const App = () => {
-    // Firebase state
-    const [db, setDb] = useState(null);
-    const [auth, setAuth] = useState(null);
-    const [userId, setUserId] = useState(null);
-    const [firebaseReady, setFirebaseReady] = useState(false);
+        // Modal component
+        const Modal = ({ children, title, onClose, className = '' }) => (
+            <div className="fixed inset-0 bg-gray-900 bg-opacity-75 flex items-center justify-center z-50 p-4">
+                <div className={`bg-[#1a202c] rounded-xl p-6 w-full max-w-lg md:max-w-xl max-h-[90vh] overflow-y-auto transform scale-100 transition-transform duration-300 ${className}`}>
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-bold text-white">{title}</h2>
+                        <button onClick={onClose} className="text-gray-400 hover:text-white text-3xl font-bold">&times;</button>
+                    </div>
+                    {children}
+                </div>
+            </div>
+        );
 
-    // App state
-    const [currentDate, setCurrentDate] = useState('');
-    const [currentEvent, setCurrentEvent] = useState('');
-    const [lineContent, setLineContent] = useState(null);
-    const [history, setHistory] = useState([]);
-    const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-    const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
-    const [isImageStyleModalOpen, setIsImageStyleModalOpen] = useState(false);
-    const [promptType, setPromptType] = useState(null);
-    const [generatedPrompt, setGeneratedPrompt] = useState('');
-    const [imagePromptText, setImagePromptText] = useState('');
-    const [customTopic, setCustomTopic] = useState('');
-    const [loadingState, setLoadingState] = useState({
-        daily: false,
-        custom: false,
-        image: false,
-        video: false,
-        audio: false,
-    });
-    const [audioUrl, setAudioUrl] = useState(null);
-    const [audioLoading, setAudioLoading] = useState(false);
+        const App = () => {
+            // Firebase state
+            const [db, setDb] = useState(null);
+            const [auth, setAuth] = useState(null);
+            const [userId, setUserId] = useState(null);
+            const [firebaseReady, setFirebaseReady] = useState(false);
 
-    // Pre-defined data for events and holidays
-    const holidays = {
-        '01-01': 'New Year\'s Day',
-        '01-06': 'Three Kings\' Day',
-        '02-14': 'Valentine\'s Day',
-        '03-17': 'St. Patrick\'s Day',
-        '04-09': 'Araw ng Kagitingan (Philippines)',
-        '05-01': 'Labor Day (Philippines)',
-        '05-12': 'Mother\'s Day', // Example, this date varies
-        '06-12': 'Philippine Independence Day',
-        '07-04': 'US Independence Day',
-        '08-11': 'Family Day (Philippines)',
-        '10-31': 'Halloween',
-        '11-01': 'All Saints\' Day (Philippines)',
-        '11-02': 'All Souls\' Day (Philippines)',
-        '11-28': 'Thanksgiving Day', // Example, this date varies
-        '12-24': 'Christmas Eve',
-        '12-25': 'Christmas Day',
-        '12-30': 'Rizal Day (Philippines)',
-        '12-31': 'New Year\'s Eve',
-    };
-
-    const getTodayDateString = () => {
-        const today = new Date();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        return `${month}-${day}`;
-    };
-
-    const getEvent = () => {
-        const today = getTodayDateString();
-        return holidays[today] || 'No current event shown';
-    };
-
-    const callGeminiAPI = async (payload, model = 'gemini-2.5-flash-preview-05-20') => {
-        const apiKey = "";
-        const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-        
-        let retryCount = 0;
-        const maxRetries = 5;
-        const baseDelay = 1000;
-
-        while (retryCount < maxRetries) {
-            try {
-                const response = await fetch(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-
-                if (response.status === 429) {
-                    retryCount++;
-                    const delay = baseDelay * Math.pow(2, retryCount);
-                    await new Promise(resolve => setTimeout(resolve, delay));
-                    continue;
-                }
-
-                if (!response.ok) {
-                    const errorData = await response.json();
-                    throw new Error(errorData.error.message || `API Error: ${response.status}`);
-                }
-
-                const result = await response.json();
-                if (result.candidates && result.candidates.length > 0) {
-                    return result;
-                }
-                throw new Error("The AI did not return any content.");
-
-            } catch (e) {
-                if (retryCount >= maxRetries - 1) {
-                    throw e;
-                }
-                retryCount++;
-                const delay = baseDelay * Math.pow(2, retryCount);
-                await new Promise(resolve => setTimeout(resolve, delay));
-            }
-        }
-    };
-
-    const loadDailyLine = async () => {
-        setLoadingState(prev => ({ ...prev, daily: true }));
-        const today = new Date().toDateString();
-        const storedLine = JSON.parse(localStorage.getItem('dailyLine'));
-
-        if (storedLine && storedLine.date === today) {
-            setLineContent(storedLine);
-            setCurrentEvent(storedLine.event);
-            setLoadingState(prev => ({ ...prev, daily: false }));
-            return;
-        }
-
-        try {
-            const event = getEvent();
-            const prompt = `Generate a single, impactful line from a movie or show. The line should be ${event === 'No current event shown' ? 'promising, inspiring, emotional, motivating, sad, hurtful, painful, or regretful' : `related to the theme of ${event}`}. Also, provide the movie/show/series title and the sentiment of the line.
-
-            Example output JSON:
-            {
-              "line": "I'm just a girl, standing in front of a boy, asking him to love her.",
-              "source": "Notting Hill",
-              "sentiment": "Emotional, Romantic"
-            }`;
-            const payload = {
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                    responseSchema: {
-                        type: 'OBJECT',
-                        properties: {
-                            line: { type: 'STRING' },
-                            source: { type: 'STRING' },
-                            sentiment: { type: 'STRING' },
-                        },
-                        propertyOrdering: ['line', 'source', 'sentiment']
-                    }
-                }
-            };
-            const result = await callGeminiAPI(payload);
-            const content = JSON.parse(result.candidates[0].content.parts[0].text);
-            const fullContent = { ...content, date: today, event: event };
-            setLineContent(fullContent);
-            setCurrentEvent(event);
-            localStorage.setItem('dailyLine', JSON.stringify(fullContent));
-            saveToFirestore(fullContent);
-        } catch (error) {
-            console.error("Error generating daily line:", error);
-            setLineContent({ line: 'Error generating line. Please try again.', source: 'N/A', sentiment: 'N/A' });
-            setCurrentEvent('N/A');
-        } finally {
-            setLoadingState(prev => ({ ...prev, daily: false }));
-        }
-    };
-    
-    const generateCustomLine = async () => {
-        setLoadingState(prev => ({ ...prev, custom: true }));
-        try {
-            const promptText = customTopic 
-                ? `Generate a single, impactful line from a movie or show related to the topic: "${customTopic}". The line should have a specific emotional tone. Also, provide the movie/show/series title and the sentiment of the line.`
-                : `Generate a single, impactful line from a movie or show. The line should be promising, inspiring, emotional, motivating, sad, hurtful, painful, or regretful. Also, provide the movie/show/series title and the sentiment of the line.`;
-            
-            const payload = {
-                contents: [{ role: 'user', parts: [{ text: promptText }] }],
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                    responseSchema: {
-                        type: 'OBJECT',
-                        properties: {
-                            line: { type: 'STRING' },
-                            source: { type: 'STRING' },
-                            sentiment: { type: 'STRING' },
-                        },
-                        propertyOrdering: ['line', 'source', 'sentiment']
-                    }
-                }
-            };
-            const result = await callGeminiAPI(payload);
-            const content = JSON.parse(result.candidates[0].content.parts[0].text);
-            const fullContent = { ...content, date: new Date().toDateString(), event: customTopic ? 'Custom Topic' : 'Random Line' };
-            setLineContent(fullContent);
-            setCurrentEvent(customTopic ? 'Custom Topic' : 'Random Line');
-            saveToFirestore(fullContent);
-        } catch (error) {
-            console.error("Error generating custom line:", error);
-            setLineContent({ line: 'Error generating line. Please try again.', source: 'N/A', sentiment: 'N/A' });
-            setCurrentEvent('N/A');
-        } finally {
-            setLoadingState(prev => ({ ...prev, custom: false }));
-        }
-    };
-
-    const handleGenerateImageClick = () => {
-        if (!lineContent) return;
-        setIsImageStyleModalOpen(true);
-    };
-    
-    const generateImage = async (style) => {
-        setIsImageStyleModalOpen(false);
-        setLoadingState(prev => ({ ...prev, image: true }));
-        setPromptType('Image');
-        setGeneratedPrompt('');
-        
-        const promptText = `A high-quality visual of the scene from the movie "${lineContent.source}" where the character says: "${lineContent.line}". The art style should be ${style}. Focus on the emotional tone: ${lineContent.sentiment}.`;
-        
-        setImagePromptText(promptText); // Store the text for the video prompt
-        
-        try {
-            const payload = { instances: { prompt: promptText }, parameters: { "sampleCount": 1 } };
-            const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${""}`;
-            const response = await fetch(apiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
+            // App state
+            const [currentDate, setCurrentDate] = useState('');
+            const [currentEvent, setCurrentEvent] = useState('');
+            const [lineContent, setLineContent] = useState(null);
+            const [history, setHistory] = useState([]);
+            const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
+            const [isPromptModalOpen, setIsPromptModalOpen] = useState(false);
+            const [isImageStyleModalOpen, setIsImageStyleModalOpen] = useState(false);
+            const [promptType, setPromptType] = useState(null);
+            const [generatedPrompt, setGeneratedPrompt] = useState('');
+            const [imagePromptText, setImagePromptText] = useState('');
+            const [customTopic, setCustomTopic] = useState('');
+            const [loadingState, setLoadingState] = useState({
+                daily: false,
+                custom: false,
+                image: false,
+                video: false,
+                audio: false,
             });
-            const result = await response.json();
-            if (result.predictions && result.predictions.length > 0 && result.predictions[0].bytesBase64Encoded) {
-                const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
-                setGeneratedPrompt(imageUrl);
-            } else {
-                setGeneratedPrompt('Error: Could not generate image. Please try again with a different line.');
-            }
-        } catch (e) {
-            console.error("Error generating image:", e);
-            setGeneratedPrompt('Error: Failed to generate image prompt.');
-        } finally {
-            setLoadingState(prev => ({ ...prev, image: false }));
-            setIsPromptModalOpen(true);
-        }
-    };
+            const [audioUrl, setAudioUrl] = useState(null);
+            const [audioLoading, setAudioLoading] = useState(false);
 
-    const generateVideoPrompt = async () => {
-        setLoadingState(prev => ({ ...prev, video: true }));
-        setPromptType('Video (JSON)');
-        setGeneratedPrompt('');
-        try {
-            const prompt = `Generate a JSON object for a video generation API based on the following image prompt: "${imagePromptText}".
-            The JSON object should have a "prompt" field with a detailed description of the scene from the image, and a "parameters" field with placeholder values for "duration" and "aspect_ratio". The video should be an animated sequence that captures the emotion and scene described by the image prompt.
+            // Pre-defined data for events and holidays
+            const holidays = {
+                '01-01': 'New Year\'s Day',
+                '01-06': 'Three Kings\' Day',
+                '02-14': 'Valentine\'s Day',
+                '03-17': 'St. Patrick\'s Day',
+                '04-09': 'Araw ng Kagitingan (Philippines)',
+                '05-01': 'Labor Day (Philippines)',
+                '05-12': 'Mother\'s Day', // Example, this date varies
+                '06-12': 'Philippine Independence Day',
+                '07-04': 'US Independence Day',
+                '08-11': 'Family Day (Philippines)',
+                '10-31': 'Halloween',
+                '11-01': 'All Saints\' Day (Philippines)',
+                '11-02': 'All Souls\' Day (Philippines)',
+                '11-28': 'Thanksgiving Day', // Example, this date varies
+                '12-24': 'Christmas Eve',
+                '12-25': 'Christmas Day',
+                '12-30': 'Rizal Day (Philippines)',
+                '12-31': 'New Year\'s Eve',
+            };
 
-            Example JSON output:
-            {
-              "prompt": "A cinematic shot of a young woman standing in a bustling street, rain gently falling, as she looks with hopeful, earnest eyes at a man across the street. The camera slowly zooms in on her face, capturing the sentiment of 'emotional, romantic'.",
-              "parameters": {
-                "duration": "8s",
-                "aspect_ratio": "16:9"
-              }
-            }`;
-            const payload = {
-                contents: [{ role: 'user', parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseMimeType: 'application/json',
-                    responseSchema: {
-                        type: 'OBJECT',
-                        properties: {
-                            prompt: { type: 'STRING' },
-                            parameters: {
+            const getTodayDateString = () => {
+                const today = new Date();
+                const month = String(today.getMonth() + 1).padStart(2, '0');
+                const day = String(today.getDate()).padStart(2, '0');
+                return `${month}-${day}`;
+            };
+
+            const getEvent = () => {
+                const today = getTodayDateString();
+                return holidays[today] || 'No current event shown';
+            };
+
+            const callGeminiAPI = async (payload, model = 'gemini-2.5-flash-preview-05-20') => {
+                const apiKey = "";
+                const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                
+                let retryCount = 0;
+                const maxRetries = 5;
+                const baseDelay = 1000;
+
+                while (retryCount < maxRetries) {
+                    try {
+                        const response = await fetch(apiUrl, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+
+                        if (response.status === 429) {
+                            retryCount++;
+                            const delay = baseDelay * Math.pow(2, retryCount);
+                            await new Promise(resolve => setTimeout(resolve, delay));
+                            continue;
+                        }
+
+                        if (!response.ok) {
+                            const errorData = await response.json();
+                            throw new Error(errorData.error.message || `API Error: ${response.status}`);
+                        }
+
+                        const result = await response.json();
+                        if (result.candidates && result.candidates.length > 0) {
+                            return result;
+                        }
+                        throw new Error("The AI did not return any content.");
+
+                    } catch (e) {
+                        if (retryCount >= maxRetries - 1) {
+                            throw e;
+                        }
+                        retryCount++;
+                        const delay = baseDelay * Math.pow(2, retryCount);
+                        await new Promise(resolve => setTimeout(resolve, delay));
+                    }
+                }
+            };
+
+            const loadDailyLine = async () => {
+                setLoadingState(prev => ({ ...prev, daily: true }));
+                const today = new Date().toDateString();
+                const storedLine = JSON.parse(localStorage.getItem('dailyLine'));
+
+                if (storedLine && storedLine.date === today) {
+                    setLineContent(storedLine);
+                    setCurrentEvent(storedLine.event);
+                    setLoadingState(prev => ({ ...prev, daily: false }));
+                    return;
+                }
+
+                try {
+                    const event = getEvent();
+                    const prompt = `Generate a single, impactful line from a movie or show. The line should be ${event === 'No current event shown' ? 'promising, inspiring, emotional, motivating, sad, hurtful, painful, or regretful' : `related to the theme of ${event}`}. Also, provide the movie/show/series title and the sentiment of the line.
+
+                    Example output JSON:
+                    {
+                      "line": "I'm just a girl, standing in front of a boy, asking him to love her.",
+                      "source": "Notting Hill",
+                      "sentiment": "Emotional, Romantic"
+                    }`;
+                    const payload = {
+                        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            responseMimeType: 'application/json',
+                            responseSchema: {
                                 type: 'OBJECT',
                                 properties: {
-                                    duration: { type: 'STRING' },
-                                    aspect_ratio: { type: 'STRING' }
+                                    line: { type: 'STRING' },
+                                    source: { type: 'STRING' },
+                                    sentiment: { type: 'STRING' },
+                                },
+                                propertyOrdering: ['line', 'source', 'sentiment']
+                            }
+                        }
+                    };
+                    const result = await callGeminiAPI(payload);
+                    const content = JSON.parse(result.candidates[0].content.parts[0].text);
+                    const fullContent = { ...content, date: today, event: event };
+                    setLineContent(fullContent);
+                    setCurrentEvent(event);
+                    localStorage.setItem('dailyLine', JSON.stringify(fullContent));
+                    saveToFirestore(fullContent);
+                } catch (error) {
+                    console.error("Error generating daily line:", error);
+                    setLineContent({ line: 'Error generating line. Please try again.', source: 'N/A', sentiment: 'N/A' });
+                    setCurrentEvent('N/A');
+                } finally {
+                    setLoadingState(prev => ({ ...prev, daily: false }));
+                }
+            };
+            
+            const generateCustomLine = async () => {
+                setLoadingState(prev => ({ ...prev, custom: true }));
+                try {
+                    const promptText = customTopic 
+                        ? `Generate a single, impactful line from a movie or show related to the topic: "${customTopic}". The line should have a specific emotional tone. Also, provide the movie/show/series title and the sentiment of the line.`
+                        : `Generate a single, impactful line from a movie or show. The line should be promising, inspiring, emotional, motivating, sad, hurtful, painful, or regretful. Also, provide the movie/show/series title and the sentiment of the line.`;
+                    
+                    const payload = {
+                        contents: [{ role: 'user', parts: [{ text: promptText }] }],
+                        generationConfig: {
+                            responseMimeType: 'application/json',
+                            responseSchema: {
+                                type: 'OBJECT',
+                                properties: {
+                                    line: { type: 'STRING' },
+                                    source: { type: 'STRING' },
+                                    sentiment: { type: 'STRING' },
+                                },
+                                propertyOrdering: ['line', 'source', 'sentiment']
+                            }
+                        }
+                    };
+                    const result = await callGeminiAPI(payload);
+                    const content = JSON.parse(result.candidates[0].content.parts[0].text);
+                    const fullContent = { ...content, date: new Date().toDateString(), event: customTopic ? 'Custom Topic' : 'Random Line' };
+                    setLineContent(fullContent);
+                    setCurrentEvent(customTopic ? 'Custom Topic' : 'Random Line');
+                    saveToFirestore(fullContent);
+                } catch (error) {
+                    console.error("Error generating custom line:", error);
+                    setLineContent({ line: 'Error generating line. Please try again.', source: 'N/A', sentiment: 'N/A' });
+                    setCurrentEvent('N/A');
+                } finally {
+                    setLoadingState(prev => ({ ...prev, custom: false }));
+                }
+            };
+
+            const handleGenerateImageClick = () => {
+                if (!lineContent) return;
+                setIsImageStyleModalOpen(true);
+            };
+            
+            const generateImage = async (style) => {
+                setIsImageStyleModalOpen(false);
+                setLoadingState(prev => ({ ...prev, image: true }));
+                setPromptType('Image');
+                setGeneratedPrompt('');
+                
+                const promptText = `A high-quality visual of the scene from the movie "${lineContent.source}" where the character says: "${lineContent.line}". The art style should be ${style}. Focus on the emotional tone: ${lineContent.sentiment}.`;
+                
+                setImagePromptText(promptText); // Store the text for the video prompt
+                
+                try {
+                    const payload = { instances: { prompt: promptText }, parameters: { "sampleCount": 1 } };
+                    const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/imagen-3.0-generate-002:predict?key=${""}`;
+                    const response = await fetch(apiUrl, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await response.json();
+                    if (result.predictions && result.predictions.length > 0 && result.predictions[0].bytesBase64Encoded) {
+                        const imageUrl = `data:image/png;base64,${result.predictions[0].bytesBase64Encoded}`;
+                        setGeneratedPrompt(imageUrl);
+                    } else {
+                        setGeneratedPrompt('Error: Could not generate image. Please try again with a different line.');
+                    }
+                } catch (e) {
+                    console.error("Error generating image:", e);
+                    setGeneratedPrompt('Error: Failed to generate image prompt.');
+                } finally {
+                    setLoadingState(prev => ({ ...prev, image: false }));
+                    setIsPromptModalOpen(true);
+                }
+            };
+
+            const generateVideoPrompt = async () => {
+                setLoadingState(prev => ({ ...prev, video: true }));
+                setPromptType('Video (JSON)');
+                setGeneratedPrompt('');
+                try {
+                    const prompt = `Generate a JSON object for a video generation API based on the following image prompt: "${imagePromptText}".
+                    The JSON object should have a "prompt" field with a detailed description of the scene from the image, and a "parameters" field with placeholder values for "duration" and "aspect_ratio". The video should be an animated sequence that captures the emotion and scene described by the image prompt.
+
+                    Example JSON output:
+                    {
+                      "prompt": "A cinematic shot of a young woman standing in a bustling street, rain gently falling, as she looks with hopeful, earnest eyes at a man across the street. The camera slowly zooms in on her face, capturing the sentiment of 'emotional, romantic'.",
+                      "parameters": {
+                        "duration": "8s",
+                        "aspect_ratio": "16:9"
+                      }
+                    }`;
+                    const payload = {
+                        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            responseMimeType: 'application/json',
+                            responseSchema: {
+                                type: 'OBJECT',
+                                properties: {
+                                    prompt: { type: 'STRING' },
+                                    parameters: {
+                                        type: 'OBJECT',
+                                        properties: {
+                                            duration: { type: 'STRING' },
+                                            aspect_ratio: { type: 'STRING' }
+                                        }
+                                    }
                                 }
                             }
                         }
-                    }
+                    };
+                    const result = await callGeminiAPI(payload);
+                    const content = JSON.parse(result.candidates[0].content.parts[0].text);
+                    setGeneratedPrompt(JSON.stringify(content, null, 2));
+                } catch (error) {
+                    console.error("Error generating video prompt:", error);
+                    setGeneratedPrompt('Error: Failed to generate video prompt.');
+                } finally {
+                    setLoadingState(prev => ({ ...prev, video: false }));
+                    setIsPromptModalOpen(true);
                 }
             };
-            const result = await callGeminiAPI(payload);
-            const content = JSON.parse(result.candidates[0].content.parts[0].text);
-            setGeneratedPrompt(JSON.stringify(content, null, 2));
-        } catch (error) {
-            console.error("Error generating video prompt:", error);
-            setGeneratedPrompt('Error: Failed to generate video prompt.');
-        } finally {
-            setLoadingState(prev => ({ ...prev, video: false }));
-            setIsPromptModalOpen(true);
-        }
-    };
 
-    const generateAudio = async () => {
-        if (!lineContent) return;
-        setAudioLoading(true);
-        setAudioUrl(null);
-        try {
-            const prompt = `Say in a warm, inviting tone: "${lineContent.line}"`;
-            const payload = {
-                contents: [{ parts: [{ text: prompt }] }],
-                generationConfig: {
-                    responseModalities: ["AUDIO"],
-                    speechConfig: {
-                        voiceConfig: {
-                            prebuiltVoiceConfig: { voiceName: "Rasalgethi" }
-                        }
-                    }
-                },
-                model: "gemini-2.5-flash-preview-tts"
-            };
-
-            const result = await callGeminiAPI(payload, "gemini-2.5-flash-preview-tts");
-            const part = result?.candidates?.[0]?.content?.parts?.[0];
-            const audioData = part?.inlineData?.data;
-            const mimeType = part?.inlineData?.mimeType;
-
-            if (audioData && mimeType && mimeType.startsWith("audio/")) {
-                const sampleRateMatch = mimeType.match(/rate=(\d+)/);
-                const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000;
-                const pcmData = base64ToArrayBuffer(audioData);
-                const pcm16 = new Int16Array(pcmData);
-                const wavBlob = pcmToWav(pcm16, sampleRate);
-                const audioUrl = URL.createObjectURL(wavBlob);
-                setAudioUrl(audioUrl);
-            } else {
-                throw new Error("TTS API returned no audio data.");
-            }
-        } catch (error) {
-            console.error("Error generating audio:", error);
-            alert("Failed to generate audio. Please try again.");
-        } finally {
-            setAudioLoading(false);
-        }
-    };
-
-    const saveToFirestore = async (data) => {
-        if (!db || !userId) {
-            console.error("Firestore not initialized or user not authenticated.");
-            return;
-        }
-        try {
-            const historyCollection = collection(db, `artifacts/${appId}/users/${userId}/history`);
-            await addDoc(historyCollection, data);
-        } catch (e) {
-            console.error("Error adding document: ", e);
-        }
-    };
-    
-    // Firestore setup
-    useEffect(() => {
-        if (!firebaseConfig.apiKey) {
-            console.error("Firebase config is missing. Firestore features will be disabled.");
-            setFirebaseReady(false);
-            return;
-        }
-
-        const app = initializeApp(firebaseConfig);
-        const firestoreDb = getFirestore(app);
-        const firestoreAuth = getAuth(app);
-
-        setDb(firestoreDb);
-        setAuth(firestoreAuth);
-
-        const unsubscribe = onAuthStateChanged(firestoreAuth, async (user) => {
-            if (user) {
-                setUserId(user.uid);
-            } else {
-                await signInAnonymously(firestoreAuth);
-            }
-            setFirebaseReady(true);
-        });
-
-        return () => unsubscribe();
-    }, []);
-
-    // Load history from Firestore
-    useEffect(() => {
-        if (db && userId) {
-            const historyCollection = collection(db, `artifacts/${appId}/users/${userId}/history`);
-            const q = query(historyCollection);
-
-            const unsubscribe = onSnapshot(q, (querySnapshot) => {
-                const fetchedHistory = [];
-                querySnapshot.forEach((doc) => {
-                    fetchedHistory.push({ id: doc.id, ...doc.data() });
-                });
-                setHistory(fetchedHistory.sort((a, b) => new Date(b.date) - new Date(a.date)));
-            }, (error) => {
-                console.error("Error listening to history changes:", error);
-            });
-
-            return () => unsubscribe();
-        }
-    }, [db, userId]);
-
-    // Initial daily line load
-    useEffect(() => {
-        setCurrentDate(new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
-        loadDailyLine();
-    }, []);
-
-    return (
-        <div className="min-h-screen bg-[#0d1117] text-white p-4 font-sans flex flex-col items-center">
-            <style jsx>{`
-                @keyframes multicolor-glow {
-                    0% { box-shadow: 0 0 10px #ff0077, 0 0 20px #00e5ff; }
-                    50% { box-shadow: 0 0 10px #00ff73, 0 0 20px #ff00ff; }
-                    100% { box-shadow: 0 0 10px #ffea00, 0 0 20px #3498db; }
-                }
-                .loader {
-                    border-top-color: #3b82f6;
-                    animation: spin 1s linear infinite;
-                }
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
-                }
-            `}</style>
-            <div className="max-w-2xl w-full flex-grow">
-                <header className="mb-8">
-                    <div className="flex justify-between items-start mb-4">
-                        <div className="text-left">
-                            <p className="text-sm md:text-md text-gray-400">{currentDate}</p>
-                            <p className="text-sm md:text-md text-gray-400 font-bold mt-1">Event: {currentEvent}</p>
-                        </div>
-                        <button
-                            onClick={() => setIsHistoryModalOpen(true)}
-                            className="bg-[#21262d] text-white font-bold w-10 h-10 flex items-center justify-center rounded-full shadow-lg hover:bg-[#30363d] transition-colors"
-                        >
-                            <i className="fas fa-clock"></i>
-                        </button>
-                    </div>
-                    <h1 className="text-3xl md:text-4xl font-bold text-center text-[#e6edf3]">Daily Movie Line Generator</h1>
-                </header>
-
-                <main className="space-y-6">
-                    <div className="bg-[#161b22] rounded-xl p-6 shadow-2xl relative min-h-[150px] flex flex-col items-center justify-center text-center">
-                        {loadingState.daily ? (
-                            <Loader text="Generating today's line..." />
-                        ) : lineContent ? (
-                            <>
-                                <blockquote className="text-2xl md:text-3xl italic font-serif leading-relaxed mb-4 text-[#c9d1d9]">
-                                    "{lineContent.line}"
-                                </blockquote>
-                                <p className="text-md text-gray-400">- {lineContent.source}</p>
-                                <p className="text-xs text-gray-500 mt-2">Sentiment: {lineContent.sentiment}</p>
-                                {audioUrl ? (
-                                    <audio controls className="mt-4 w-full">
-                                        <source src={audioUrl} type="audio/wav" />
-                                        Your browser does not support the audio element.
-                                    </audio>
-                                ) : (
-                                    <GlowingButton onClick={generateAudio} disabled={audioLoading} className="mt-4 w-auto px-6 py-2">
-                                        {audioLoading ? 'Generating Audio...' : <><i className="fas fa-volume-up mr-2"></i>Generate Audio</>}
-                                    </GlowingButton>
-                                )}
-                            </>
-                        ) : (
-                            <p className="text-md text-gray-400">Content will appear here.</p>
-                        )}
-                    </div>
-                    <div className="space-y-4">
-                        <GlowingButton onClick={handleGenerateImageClick} disabled={loadingState.daily || loadingState.image || !lineContent} className="w-full">
-                            {loadingState.image ? 'Generating Image Prompt...' : <><i className="fas fa-image mr-2"></i>Generate Image</>}
-                        </GlowingButton>
-                        <GlowingButton onClick={generateVideoPrompt} disabled={loadingState.daily || loadingState.video || !lineContent || !imagePromptText} className="w-full">
-                            {loadingState.video ? 'Generating Video Prompt...' : <><i className="fas fa-film mr-2"></i>Generate Video Prompt</>}
-                        </GlowingButton>
-                    </div>
-                    <div className="bg-[#161b22] rounded-xl p-4 shadow-2xl">
-                        <h2 className="text-xl font-bold mb-2">Generate a line from a topic</h2>
-                        <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-2">
-                            <input
-                                type="text"
-                                className="flex-grow bg-[#0d1117] rounded-lg p-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
-                                placeholder="Enter a topic or news story..."
-                                value={customTopic}
-                                onChange={(e) => setCustomTopic(e.target.value)}
-                            />
-                            <GlowingButton onClick={generateCustomLine} disabled={loadingState.custom} className="w-full md:w-auto">
-                                {loadingState.custom ? 'Generating...' : customTopic ? 'Generate Related Line' : 'Generate Another Line'}
-                            </GlowingButton>
-                        </div>
-                    </div>
-                </main>
-            </div>
-
-            {isHistoryModalOpen && (
-                <Modal title="History" onClose={() => setIsHistoryModalOpen(false)}>
-                    <ul className="space-y-4">
-                        {history.length > 0 ? (
-                            history.map((item) => (
-                                <li key={item.id} className="bg-[#21262d] p-4 rounded-lg hover:bg-[#30363d] transition-colors cursor-pointer">
-                                    <p className="text-sm md:text-lg font-semibold truncate text-[#e6edf3]">"{item.line}"</p>
-                                    <p className="text-xs text-gray-400 mt-1">{item.source} - {new Date(item.date).toLocaleDateString()}</p>
-                                </li>
-                            ))
-                        ) : (
-                            <p className="text-center text-gray-500">Your history is empty.</p>
-                        )}
-                    </ul>
-                </Modal>
-            )}
-
-            {isImageStyleModalOpen && (
-                <Modal title="Select Image Style" onClose={() => setIsImageStyleModalOpen(false)}>
-                    <div className="flex flex-col space-y-4">
-                        <GlowingButton onClick={() => generateImage('photorealistic')} className="bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600">
-                            Photorealistic
-                        </GlowingButton>
-                        <GlowingButton onClick={() => generateImage('cartoon style')} className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600">
-                            Cartoon Style
-                        </GlowingButton>
-                    </div>
-                </Modal>
-            )}
-
-            {isPromptModalOpen && (
-                <Modal title={`${promptType} Prompt`} onClose={() => setIsPromptModalOpen(false)} className="bg-gray-800">
-                    <div className="mb-4 text-sm text-gray-300">
-                        <p>This prompt or image can be used in other generative AI tools.</p>
-                    </div>
-                    {promptType === 'Image' ? (
-                        <div className="w-full h-80 bg-gray-900 rounded-lg flex items-center justify-center p-2">
-                            {generatedPrompt.startsWith('data:image') ? (
-                                <img src={generatedPrompt} alt="Generated scene" className="max-w-full max-h-full object-contain rounded-lg" />
-                            ) : (
-                                <p className="text-gray-400 text-center">{generatedPrompt}</p>
-                            )}
-                        </div>
-                    ) : (
-                        <pre className="bg-[#0d1117] rounded-lg p-4 overflow-x-auto text-sm text-[#c9d1d9] whitespace-pre-wrap">
-                            <code>{generatedPrompt}</code>
-                        </pre>
-                    )}
-                    <button
-                        onClick={() => {
-                            if (promptType === 'Image') {
-                                // No copy for image
-                                setIsPromptModalOpen(false);
-                                return;
+            const generateAudio = async () => {
+                if (!lineContent) return;
+                setAudioLoading(true);
+                setAudioUrl(null);
+                try {
+                    const prompt = `Say in a warm, inviting tone: "${lineContent.line}"`;
+                    const payload = {
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: {
+                            responseModalities: ["AUDIO"],
+                            speechConfig: {
+                                voiceConfig: {
+                                    prebuiltVoiceConfig: { voiceName: "Rasalgethi" }
+                                }
                             }
-                            const el = document.createElement('textarea');
-                            el.value = generatedPrompt;
-                            document.body.appendChild(el);
-                            el.select();
-                            document.execCommand('copy');
-                            document.body.removeChild(el);
-                            alert("Prompt copied to clipboard!"); // Using a simple alert for this case
-                        }}
-                        disabled={promptType === 'Image'}
-                        className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full transition-colors disabled:opacity-50"
-                    >
-                        Copy Prompt
-                    </button>
-                </Modal>
-            )}
-        </div>
-    );
-};
+                        },
+                        model: "gemini-2.5-flash-preview-tts"
+                    };
 
-export default App;
+                    const result = await callGeminiAPI(payload, "gemini-2.5-flash-preview-tts");
+                    const part = result?.candidates?.[0]?.content?.parts?.[0];
+                    const audioData = part?.inlineData?.data;
+                    const mimeType = part?.inlineData?.mimeType;
+
+                    if (audioData && mimeType && mimeType.startsWith("audio/")) {
+                        const sampleRateMatch = mimeType.match(/rate=(\d+)/);
+                        const sampleRate = sampleRateMatch ? parseInt(sampleRateMatch[1], 10) : 16000;
+                        const pcmData = base64ToArrayBuffer(audioData);
+                        const pcm16 = new Int16Array(pcmData);
+                        const wavBlob = pcmToWav(pcm16, sampleRate);
+                        const audioUrl = URL.createObjectURL(wavBlob);
+                        setAudioUrl(audioUrl);
+                    } else {
+                        throw new Error("TTS API returned no audio data.");
+                    }
+                } catch (error) {
+                    console.error("Error generating audio:", error);
+                    alert("Failed to generate audio. Please try again.");
+                } finally {
+                    setAudioLoading(false);
+                }
+            };
+
+            const saveToFirestore = async (data) => {
+                if (!db || !userId) {
+                    console.error("Firestore not initialized or user not authenticated.");
+                    return;
+                }
+                try {
+                    const historyCollection = collection(db, `artifacts/${appId}/users/${userId}/history`);
+                    await addDoc(historyCollection, data);
+                } catch (e) {
+                    console.error("Error adding document: ", e);
+                }
+            };
+            
+            // Firestore setup
+            useEffect(() => {
+                if (!firebaseConfig.apiKey) {
+                    console.error("Firebase config is missing. Firestore features will be disabled.");
+                    return;
+                }
+
+                const app = initializeApp(firebaseConfig);
+                const firestoreDb = getFirestore(app);
+                const firestoreAuth = getAuth(app);
+
+                setDb(firestoreDb);
+                setAuth(firestoreAuth);
+
+                const unsubscribe = onAuthStateChanged(firestoreAuth, async (user) => {
+                    if (user) {
+                        setUserId(user.uid);
+                    } else {
+                        await signInAnonymously(firestoreAuth);
+                    }
+                });
+
+                return () => unsubscribe();
+            }, []);
+
+            // Load history from Firestore
+            useEffect(() => {
+                if (db && userId) {
+                    const historyCollection = collection(db, `artifacts/${appId}/users/${userId}/history`);
+                    const q = query(historyCollection);
+
+                    const unsubscribe = onSnapshot(q, (querySnapshot) => {
+                        const fetchedHistory = [];
+                        querySnapshot.forEach((doc) => {
+                            fetchedHistory.push({ id: doc.id, ...doc.data() });
+                        });
+                        setHistory(fetchedHistory.sort((a, b) => new Date(b.date) - new Date(a.date)));
+                    }, (error) => {
+                        console.error("Error listening to history changes:", error);
+                    });
+
+                    return () => unsubscribe();
+                }
+            }, [db, userId]);
+
+            // Initial daily line load
+            useEffect(() => {
+                setCurrentDate(new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }));
+                loadDailyLine();
+            }, []);
+
+            return (
+                <div className="min-h-screen bg-[#0d1117] text-white p-4 font-sans flex flex-col items-center">
+                    <div className="max-w-2xl w-full flex-grow">
+                        <header className="mb-8">
+                            <div className="flex justify-between items-start mb-4">
+                                <div className="text-left">
+                                    <p className="text-sm md:text-md text-gray-400">{currentDate}</p>
+                                    <p className="text-sm md:text-md text-gray-400 font-bold mt-1">Event: {currentEvent}</p>
+                                </div>
+                                <button
+                                    onClick={() => setIsHistoryModalOpen(true)}
+                                    className="bg-[#21262d] text-white font-bold w-10 h-10 flex items-center justify-center rounded-full shadow-lg hover:bg-[#30363d] transition-colors"
+                                >
+                                    <i className="fas fa-clock"></i>
+                                </button>
+                            </div>
+                            <h1 className="text-3xl md:text-4xl font-bold text-center text-[#e6edf3]">Daily Movie Line Generator</h1>
+                        </header>
+
+                        <main className="space-y-6">
+                            <div className="bg-[#161b22] rounded-xl p-6 shadow-2xl relative min-h-[150px] flex flex-col items-center justify-center text-center">
+                                {loadingState.daily ? (
+                                    <Loader text="Generating today's line..." />
+                                ) : lineContent ? (
+                                    <>
+                                        <blockquote className="text-2xl md:text-3xl italic font-serif leading-relaxed mb-4 text-[#c9d1d9]">
+                                            "{lineContent.line}"
+                                        </blockquote>
+                                        <p className="text-md text-gray-400">- {lineContent.source}</p>
+                                        <p className="text-xs text-gray-500 mt-2">Sentiment: {lineContent.sentiment}</p>
+                                        {audioUrl ? (
+                                            <audio controls className="mt-4 w-full">
+                                                <source src={audioUrl} type="audio/wav" />
+                                                Your browser does not support the audio element.
+                                            </audio>
+                                        ) : (
+                                            <GlowingButton onClick={generateAudio} disabled={audioLoading} className="mt-4 w-auto px-6 py-2">
+                                                {audioLoading ? 'Generating Audio...' : <><i className="fas fa-volume-up mr-2"></i>Generate Audio</>}
+                                            </GlowingButton>
+                                        )}
+                                    </>
+                                ) : (
+                                    <p className="text-md text-gray-400">Content will appear here.</p>
+                                )}
+                            </div>
+                            <div className="space-y-4">
+                                <GlowingButton onClick={handleGenerateImageClick} disabled={loadingState.daily || loadingState.image || !lineContent} className="w-full">
+                                    {loadingState.image ? 'Generating Image Prompt...' : <><i className="fas fa-image mr-2"></i>Generate Image</>}
+                                </GlowingButton>
+                                <GlowingButton onClick={generateVideoPrompt} disabled={loadingState.daily || loadingState.video || !lineContent || !imagePromptText} className="w-full">
+                                    {loadingState.video ? 'Generating Video Prompt...' : <><i className="fas fa-film mr-2"></i>Generate Video Prompt</>}
+                                </GlowingButton>
+                            </div>
+                            <div className="bg-[#161b22] rounded-xl p-4 shadow-2xl">
+                                <h2 className="text-xl font-bold mb-2">Generate a line from a topic</h2>
+                                <div className="flex flex-col space-y-2 md:flex-row md:space-y-0 md:space-x-2">
+                                    <input
+                                        type="text"
+                                        className="flex-grow bg-[#0d1117] rounded-lg p-3 text-white placeholder-gray-500 focus:ring-2 focus:ring-blue-500 focus:outline-none"
+                                        placeholder="Enter a topic or news story..."
+                                        value={customTopic}
+                                        onChange={(e) => setCustomTopic(e.target.value)}
+                                    />
+                                    <GlowingButton onClick={generateCustomLine} disabled={loadingState.custom} className="w-full md:w-auto">
+                                        {loadingState.custom ? 'Generating...' : customTopic ? 'Generate Related Line' : 'Generate Another Line'}
+                                    </GlowingButton>
+                                </div>
+                            </div>
+                        </main>
+                    </div>
+
+                    {isHistoryModalOpen && (
+                        <Modal title="History" onClose={() => setIsHistoryModalOpen(false)}>
+                            <ul className="space-y-4">
+                                {history.length > 0 ? (
+                                    history.map((item) => (
+                                        <li key={item.id} className="bg-[#21262d] p-4 rounded-lg hover:bg-[#30363d] transition-colors cursor-pointer">
+                                            <p className="text-sm md:text-lg font-semibold truncate text-[#e6edf3]">"{item.line}"</p>
+                                            <p className="text-xs text-gray-400 mt-1">{item.source} - {new Date(item.date).toLocaleDateString()}</p>
+                                        </li>
+                                    ))
+                                ) : (
+                                    <p className="text-center text-gray-500">Your history is empty.</p>
+                                )}
+                            </ul>
+                        </Modal>
+                    )}
+
+                    {isImageStyleModalOpen && (
+                        <Modal title="Select Image Style" onClose={() => setIsImageStyleModalOpen(false)}>
+                            <div className="flex flex-col space-y-4">
+                                <GlowingButton onClick={() => generateImage('photorealistic')} className="bg-gradient-to-r from-teal-500 to-green-500 hover:from-teal-600 hover:to-green-600">
+                                    Photorealistic
+                                </GlowingButton>
+                                <GlowingButton onClick={() => generateImage('cartoon style')} className="bg-gradient-to-r from-orange-500 to-yellow-500 hover:from-orange-600 hover:to-yellow-600">
+                                    Cartoon Style
+                                </GlowingButton>
+                            </div>
+                        </Modal>
+                    )}
+
+                    {isPromptModalOpen && (
+                        <Modal title={`${promptType} Prompt`} onClose={() => setIsPromptModalOpen(false)} className="bg-gray-800">
+                            <div className="mb-4 text-sm text-gray-300">
+                                <p>This prompt or image can be used in other generative AI tools.</p>
+                            </div>
+                            {promptType === 'Image' ? (
+                                <div className="w-full h-80 bg-gray-900 rounded-lg flex items-center justify-center p-2">
+                                    {generatedPrompt.startsWith('data:image') ? (
+                                        <img src={generatedPrompt} alt="Generated scene" className="max-w-full max-h-full object-contain rounded-lg" />
+                                    ) : (
+                                        <p className="text-gray-400 text-center">{generatedPrompt}</p>
+                                    )}
+                                </div>
+                            ) : (
+                                <pre className="bg-[#0d1117] rounded-lg p-4 overflow-x-auto text-sm text-[#c9d1d9] whitespace-pre-wrap">
+                                    <code>{generatedPrompt}</code>
+                                </pre>
+                            )}
+                            <button
+                                onClick={() => {
+                                    if (promptType === 'Image') {
+                                        // No copy for image
+                                        setIsPromptModalOpen(false);
+                                        return;
+                                    }
+                                    const el = document.createElement('textarea');
+                                    el.value = generatedPrompt;
+                                    document.body.appendChild(el);
+                                    el.select();
+                                    document.execCommand('copy');
+                                    document.body.removeChild(el);
+                                    alert("Prompt copied to clipboard!"); // Using a simple alert for this case
+                                }}
+                                disabled={promptType === 'Image'}
+                                className="w-full mt-4 bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full transition-colors disabled:opacity-50"
+                            >
+                                Copy Prompt
+                            </button>
+                        </Modal>
+                    )}
+                </div>
+            );
+        };
+
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
+        root.render(<App />);
+    </script>
+</body>
+</html>
