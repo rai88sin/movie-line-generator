@@ -68,10 +68,6 @@ const GlowingButton = ({ children, onClick, disabled = false, className = '' }) 
                    shadow-md
                    ${disabled ? '' : 'animate-pulse-glow'}
                    ${className}`}
-        style={{
-            boxShadow: '0 0 10px #00f, 0 0 20px #f0f, 0 0 30px #0ff',
-            animation: disabled ? 'none' : 'multicolor-glow 1.5s infinite alternate'
-        }}
     >
         {children}
     </button>
@@ -493,7 +489,8 @@ const App = () => {
 
     return (
         <div className="min-h-screen bg-[#0d1117] text-white p-4 font-sans flex flex-col items-center">
-            <style jsx>{`
+            <style>
+                {`
                 @keyframes multicolor-glow {
                     0% { box-shadow: 0 0 10px #ff0077, 0 0 20px #00e5ff; }
                     50% { box-shadow: 0 0 10px #00ff73, 0 0 20px #ff00ff; }
@@ -506,7 +503,24 @@ const App = () => {
                 @keyframes spin {
                     to { transform: rotate(360deg); }
                 }
-            `}</style>
+                .glowing-button {
+                    position: relative;
+                    padding: 0.75rem 1.5rem;
+                    border-radius: 9999px;
+                    font-weight: 700;
+                    color: #fff;
+                    transition: all 0.3s;
+                    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+                    background-image: linear-gradient(to right, var(--tw-gradient-stops));
+                }
+                .glowing-button:not(:disabled) {
+                    animation: multicolor-glow 1.5s infinite alternate;
+                }
+                .glowing-button:hover:not(:disabled) {
+                    box-shadow: 0 0 10px #ff0077, 0 0 20px #00e5ff, 0 0 30px #00ff73;
+                }
+                `}
+            </style>
             <div className="max-w-2xl w-full flex-grow">
                 <header className="mb-8">
                     <div className="flex justify-between items-start mb-4">
