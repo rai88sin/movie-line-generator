@@ -9,13 +9,10 @@
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-<<<<<<< HEAD
     <!-- Firebase CDN Scripts -->
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
     <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
-=======
->>>>>>> e26b59c5f77f0d05995adf86dc994d549d8e0e05
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body {
@@ -34,7 +31,6 @@
         @keyframes spin {
             to { transform: rotate(360deg); }
         }
-<<<<<<< HEAD
         .glowing-button {
             position: relative;
             padding: 0.75rem 1.5rem;
@@ -51,15 +47,12 @@
         .glowing-button:not(:disabled) {
             animation: multicolor-glow 1.5s infinite alternate;
         }
-=======
->>>>>>> e26b59c5f77f0d05995adf86dc994d549d8e0e05
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-<<<<<<< HEAD
         // Access React hooks from the global React object
         const { useState, useEffect } = React;
         
@@ -67,13 +60,7 @@
         const { initializeApp } = window.firebase.app;
         const { getAuth, signInAnonymously, onAuthStateChanged } = window.firebase.auth;
         const { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs, addDoc } = window.firebase.firestore;
-=======
-        import { useState, useEffect } from 'react';
-        import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-        import { initializeApp } from 'firebase/app';
-        import { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs, addDoc } from 'firebase/firestore';
->>>>>>> e26b59c5f77f0d05995adf86dc994d549d8e0e05
-
+        
         // Check for Canvas environment variables
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
         const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
@@ -504,14 +491,10 @@
                 }
             };
             
-            // Firestore setup
+            // Firebase setup
             useEffect(() => {
                 if (!firebaseConfig.apiKey) {
                     console.error("Firebase config is missing. Firestore features will be disabled.");
-<<<<<<< HEAD
-=======
-                    setFirebaseReady(false);
->>>>>>> e26b59c5f77f0d05995adf86dc994d549d8e0e05
                     return;
                 }
 
@@ -528,10 +511,6 @@
                     } else {
                         await signInAnonymously(firestoreAuth);
                     }
-<<<<<<< HEAD
-=======
-                    setFirebaseReady(true);
->>>>>>> e26b59c5f77f0d05995adf86dc994d549d8e0e05
                 });
 
                 return () => unsubscribe();
@@ -565,41 +544,6 @@
 
             return (
                 <div className="min-h-screen bg-[#0d1117] text-white p-4 font-sans flex flex-col items-center">
-<<<<<<< HEAD
-=======
-                    <style>
-                        {`
-                        @keyframes multicolor-glow {
-                            0% { box-shadow: 0 0 10px #ff0077, 0 0 20px #00e5ff; }
-                            50% { box-shadow: 0 0 10px #00ff73, 0 0 20px #ff00ff; }
-                            100% { box-shadow: 0 0 10px #ffea00, 0 0 20px #3498db; }
-                        }
-                        .loader {
-                            border-top-color: #3b82f6;
-                            animation: spin 1s linear infinite;
-                        }
-                        @keyframes spin {
-                            to { transform: rotate(360deg); }
-                        }
-                        .glowing-button {
-                            position: relative;
-                            padding: 0.75rem 1.5rem;
-                            border-radius: 9999px;
-                            font-weight: 700;
-                            color: #fff;
-                            transition: all 0.3s;
-                            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
-                            background-image: linear-gradient(to right, #2563eb, #8b5cf6);
-                        }
-                        .glowing-button:hover:not(:disabled) {
-                            background-image: linear-gradient(to right, #1d4ed8, #7c3aed);
-                        }
-                        .glowing-button:not(:disabled) {
-                            animation: multicolor-glow 1.5s infinite alternate;
-                        }
-                        `}
-                    </style>
->>>>>>> e26b59c5f77f0d05995adf86dc994d549d8e0e05
                     <div className="max-w-2xl w-full flex-grow">
                         <header className="mb-8">
                             <div className="flex justify-between items-start mb-4">
@@ -747,11 +691,5 @@
         const root = ReactDOM.createRoot(container);
         root.render(<App />);
     </script>
-<<<<<<< HEAD
-=======
-    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
->>>>>>> e26b59c5f77f0d05995adf86dc994d549d8e0e05
 </body>
 </html>
