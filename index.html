@@ -10,9 +10,9 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <!-- Firebase CDN Scripts -->
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
         body {
@@ -56,10 +56,10 @@
         // Access React hooks from the global React object
         const { useState, useEffect } = React;
         
-        // Access Firebase services from the global firebase object
+        // Access Firebase services from the global window.firebase object
         const { initializeApp } = window.firebase.app;
         const { getAuth, signInAnonymously, onAuthStateChanged } = window.firebase.auth;
-        const { getFirestore, doc, setDoc, onSnapshot, collection, query, where, getDocs, addDoc } = window.firebase.firestore;
+        const { getFirestore, onSnapshot, collection, query, addDoc } = window.firebase.firestore;
         
         // Check for Canvas environment variables
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
